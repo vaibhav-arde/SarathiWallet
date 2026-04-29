@@ -60,8 +60,8 @@ Sarathi Wallet is a modern, lightweight personal finance application designed to
 
 - [x] **Step 1: Database & Base Templates** — Initial schema and layout.
 - [x] **Step 2: User Registration** — Secure account creation with validation and hashing.
-- [ ] **Step 3: Login & Sessions** — Authentication and protected routes.
-- [ ] **Step 4: User Profile** — Manage personal details.
+- [x] **Step 3: Login & Sessions** — Authentication and protected routes.
+- [x] **Step 4: User Profile** — Manage personal details.
 - [ ] **Step 5: Expense Dashboard** — Visualize monthly spending.
 - [ ] **Step 6: List Expenses** — View and filter transactions.
 - [ ] **Step 7: Add Expense** — Create new transaction entries.
