@@ -6,6 +6,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from contextlib import asynccontextmanager
 from werkzeug.security import generate_password_hash, check_password_hash
 from pydantic import ValidationError
+from datetime import datetime
 
 import sqlite3
 import os
@@ -170,37 +171,101 @@ async def logout(request: Request):
 
 
 @app.get("/profile", response_class=HTMLResponse)
-async def profile(request: Request):
-    if not request.session.get("user_id"):
+async def profile(
+    request: Request,
+    db: sqlite3.Connection = Depends(get_db_dependency)
+):
+    user_id = request.session.get("user_id")
+    if not user_id:
         return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
-    # Hardcoded mock data for Step 4
+    cursor = db.cursor()
+    
+    # Fetch user details
+    cursor.execute("SELECT name, email, created_at FROM users WHERE id = ?", (user_id,))
+    user = cursor.fetchone()
+    
+    if not user:
+        # User in session but not in DB? Clear session and redirect.
+        request.session.clear()
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Fetch expenses for the logged-in user
+    cursor.execute(
+        "SELECT amount, category, date, description FROM expenses WHERE user_id = ? ORDER BY date DESC",
+        (user_id,)
+    )
+    expenses = cursor.fetchall()
+
+    # 1. Compute user_info
+    name = user["name"]
+    initials = "".join([n[0].upper() for n in name.split() if n])[:2]
+    
+    # Format member_since: e.g., "2023-10-27 10:00:00" -> "October 2023"
+    try:
+        # SQLite's datetime('now') returns 'YYYY-MM-DD HH:MM:SS'
+        created_at_dt = datetime.strptime(user["created_at"], "%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        try:
+            # Fallback for just date format if needed
+            created_at_dt = datetime.strptime(user["created_at"].split()[0], "%Y-%m-%d")
+        except:
+            created_at_dt = datetime.now()
+    
+    member_since = created_at_dt.strftime("%B %Y")
+
     user_info = {
-        "initials": "JD",
-        "name": "John Doe",
-        "email": "john.doe@example.com",
-        "member_since": "October 2023"
+        "initials": initials,
+        "name": name,
+        "email": user["email"],
+        "member_since": member_since
     }
+
+    # 2. Compute summary_stats and transactions
+    total_spent_val = 0
+    transactions_count = len(expenses)
+    category_totals = {}
+    transactions = []
+
+    for exp in expenses:
+        amount = exp["amount"]
+        total_spent_val += amount
+        cat = exp["category"]
+        category_totals[cat] = category_totals.get(cat, 0) + amount
+        
+        transactions.append({
+            "date": exp["date"],
+            "desc": exp["description"] or "No description",
+            "category": cat,
+            "amount": f"₹{amount:,.0f}",
+            "type": "expense"
+        })
+
+    top_category = "N/A"
+    if category_totals:
+        top_category = max(category_totals, key=category_totals.get)
 
     summary_stats = {
-        "total_spent": "₹12,450",
-        "transactions_count": 14,
-        "top_category": "Food"
+        "total_spent": f"₹{total_spent_val:,.0f}",
+        "transactions_count": transactions_count,
+        "top_category": top_category
     }
 
-    transactions = [
-        {"date": "2023-10-25", "desc": "Grocery Run", "category": "Food", "amount": "₹1,200", "type": "expense"},
-        {"date": "2023-10-24", "desc": "Petrol", "category": "Transport", "amount": "₹500", "type": "expense"},
-        {"date": "2023-10-22", "desc": "Internet Bill", "category": "Utilities", "amount": "₹800", "type": "expense"},
-        {"date": "2023-10-20", "desc": "Lunch with team", "category": "Dining", "amount": "₹1,500", "type": "expense"}
-    ]
-
-    categories = [
-        {"name": "Food", "amount": "₹4,500", "percentage": 60, "color_class": "mock-bar"},
-        {"name": "Transport", "amount": "₹2,500", "percentage": 35, "color_class": "mock-bar-2"},
-        {"name": "Utilities", "amount": "₹1,800", "percentage": 25, "color_class": "mock-bar-3"},
-        {"name": "Dining", "amount": "₹3,650", "percentage": 50, "color_class": "mock-bar-4"}
-    ]
+    # 3. Compute categories
+    categories = []
+    color_classes = ["mock-bar", "mock-bar-2", "mock-bar-3", "mock-bar-4"]
+    
+    # Sort categories by amount descending
+    sorted_categories = sorted(category_totals.items(), key=lambda x: x[1], reverse=True)
+    
+    for i, (cat_name, cat_amount) in enumerate(sorted_categories):
+        percentage = int((cat_amount / total_spent_val * 100)) if total_spent_val > 0 else 0
+        categories.append({
+            "name": cat_name,
+            "amount": f"₹{cat_amount:,.0f}",
+            "percentage": percentage,
+            "color_class": color_classes[i % len(color_classes)]
+        })
 
     return templates.TemplateResponse("profile.html", {
         "request": request,

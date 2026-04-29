@@ -202,6 +202,18 @@
 .badge-transport { background: var(--accent-2-light); color: var(--accent-2); }
 .badge-utilities { background: #eef2f7; color: #5b7fa6; }
 .badge-dining { background: #f5eff3; color: #8b5e83; }
+.badge-bills { background: #fff9db; color: #f08c00; }
+.badge-health { background: #ebfbee; color: #2b8a3e; }
+.badge-entertainment { background: #f3f0ff; color: #5f3dc4; }
+.badge-shopping { background: #fff0f6; color: #c2255c; }
+.badge-other { background: #f8f9fa; color: #495057; }
+
+.empty-state-text {
+    font-size: 0.9rem;
+    color: var(--ink-muted);
+    text-align: center;
+    padding: 1rem 0;
+}
 
 .td-amount {
     text-align: right;
