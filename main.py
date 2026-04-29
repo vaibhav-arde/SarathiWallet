@@ -151,7 +151,7 @@ async def login(
     if user and check_password_hash(user["password_hash"], login_data.password):
         request.session["user_id"] = user["id"]
         request.session["user_name"] = user["name"]
-        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+        return RedirectResponse(url="/profile", status_code=status.HTTP_303_SEE_OTHER)
 
     return templates.TemplateResponse("login.html", {
         "request": request,
@@ -169,9 +169,46 @@ async def logout(request: Request):
     return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 
-@app.get("/profile")
-async def profile():
-    return {"message": "Profile page — coming in Step 4"}
+@app.get("/profile", response_class=HTMLResponse)
+async def profile(request: Request):
+    if not request.session.get("user_id"):
+        return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+
+    # Hardcoded mock data for Step 4
+    user_info = {
+        "initials": "JD",
+        "name": "John Doe",
+        "email": "john.doe@example.com",
+        "member_since": "October 2023"
+    }
+
+    summary_stats = {
+        "total_spent": "₹12,450",
+        "transactions_count": 14,
+        "top_category": "Food"
+    }
+
+    transactions = [
+        {"date": "2023-10-25", "desc": "Grocery Run", "category": "Food", "amount": "₹1,200", "type": "expense"},
+        {"date": "2023-10-24", "desc": "Petrol", "category": "Transport", "amount": "₹500", "type": "expense"},
+        {"date": "2023-10-22", "desc": "Internet Bill", "category": "Utilities", "amount": "₹800", "type": "expense"},
+        {"date": "2023-10-20", "desc": "Lunch with team", "category": "Dining", "amount": "₹1,500", "type": "expense"}
+    ]
+
+    categories = [
+        {"name": "Food", "amount": "₹4,500", "percentage": 60, "color_class": "mock-bar"},
+        {"name": "Transport", "amount": "₹2,500", "percentage": 35, "color_class": "mock-bar-2"},
+        {"name": "Utilities", "amount": "₹1,800", "percentage": 25, "color_class": "mock-bar-3"},
+        {"name": "Dining", "amount": "₹3,650", "percentage": 50, "color_class": "mock-bar-4"}
+    ]
+
+    return templates.TemplateResponse("profile.html", {
+        "request": request,
+        "user_info": user_info,
+        "summary_stats": summary_stats,
+        "transactions": transactions,
+        "categories": categories
+    })
 
 
 @app.get("/expenses/add")
