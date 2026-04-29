@@ -23,15 +23,19 @@
         <div class="categories-card">
             <h2 class="section-title">Categories</h2>
             <div class="category-list">
-                {% for cat in categories %}
-                <div class="category-item">
-                    <span class="category-name">{{ cat.name }}</span>
-                    <div class="category-bar-wrapper">
-                        <div class="category-bar {{ cat.color_class }}" style="width: {{ cat.percentage }}%;"></div>
+                {% if categories %}
+                    {% for cat in categories %}
+                    <div class="category-item">
+                        <span class="category-name">{{ cat.name }}</span>
+                        <div class="category-bar-wrapper">
+                            <div class="category-bar {{ cat.color_class }}" style="width: {{ cat.percentage }}%;"></div>
+                        </div>
+                        <span class="category-amount">{{ cat.amount }}</span>
                     </div>
-                    <span class="category-amount">{{ cat.amount }}</span>
-                </div>
-                {% endfor %}
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state-text">No category data available.</p>
+                {% endif %}
             </div>
         </div>
     </aside>
@@ -68,18 +72,26 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for tx in transactions %}
-                    <tr>
-                        <td class="td-date">{{ tx.date }}</td>
-                        <td class="td-desc">{{ tx.desc }}</td>
-                        <td>
-                            <span class="badge badge-{{ tx.category.lower() }}">
-                                {{ tx.category }}
-                            </span>
-                        </td>
-                        <td class="td-amount">{{ tx.amount }}</td>
-                    </tr>
-                    {% endfor %}
+                    {% if transactions %}
+                        {% for tx in transactions %}
+                        <tr>
+                            <td class="td-date">{{ tx.date }}</td>
+                            <td class="td-desc">{{ tx.desc }}</td>
+                            <td>
+                                <span class="badge badge-{{ tx.category.replace(' ', '-').lower() }}">
+                                    {{ tx.category }}
+                                </span>
+                            </td>
+                            <td class="td-amount">{{ tx.amount }}</td>
+                        </tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" style="text-align: center; padding: 2rem; color: var(--ink-muted);">
+                                No transactions found. Start tracking your expenses!
+                            </td>
+                        </tr>
+                    {% endif %}
                 </tbody>
             </table>
         </section>
