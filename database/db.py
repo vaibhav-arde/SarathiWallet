@@ -1,7 +1,9 @@
 import sqlite3
 import os
+from werkzeug.security import generate_password_hash
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), "..", "database", "expenses.db")
+# DATABASE_PATH in the project root as per database_spec.md
+DATABASE_PATH = os.path.join(os.path.dirname(__file__), "..", "SarathiWallet.db")
 
 
 def get_db():
@@ -17,27 +19,27 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Users table
+    # Users table as per schema A
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
             email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            password_hash TEXT NOT NULL,
+            created_at TEXT DEFAULT (datetime('now'))
         )
     """)
 
-    # Expenses table
+    # Expenses table as per schema B
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS expenses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             amount REAL NOT NULL,
             category TEXT NOT NULL,
-            date DATE NOT NULL,
+            date TEXT NOT NULL,
             description TEXT,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
         )
     """)
@@ -51,30 +53,36 @@ def seed_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Check if data already exists
+    # Check if data already exists to prevent duplication
     cursor.execute("SELECT COUNT(*) FROM users")
     if cursor.fetchone()[0] > 0:
         conn.close()
         return
 
-    # Insert sample users
-    cursor.executemany(
-        "INSERT INTO users (name, email, password) VALUES (?, ?, ?)",
-        [
-            ("Nitish Kumar", "nitish@example.com", "password123"),
-            ("Test User", "test@example.com", "password456"),
-        ]
+    # 1. Insert demo user
+    hashed_password = generate_password_hash("demo123")
+    cursor.execute(
+        "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+        ("Demo User", "demo@SarathiWallet.com", hashed_password)
     )
+    user_id = cursor.lastrowid
 
-    # Insert sample expenses
+    # 2. Insert 8 sample expenses across categories (Fixed List)
+    # Categories: Food, Transport, Bills, Health, Entertainment, Shopping, Other
+    sample_expenses = [
+        (user_id, 450.00, "Food", "2026-04-01", "Dinner at Cafe"),
+        (user_id, 1200.00, "Transport", "2026-04-02", "Monthly transit pass"),
+        (user_id, 2500.00, "Bills", "2026-04-05", "Internet and Electric"),
+        (user_id, 800.00, "Health", "2026-04-07", "Vitamin supplements"),
+        (user_id, 1500.00, "Entertainment", "2026-04-10", "Movie and snacks"),
+        (user_id, 3200.00, "Shopping", "2026-04-12", "New sneakers"),
+        (user_id, 500.00, "Other", "2026-04-15", "Gift for friend"),
+        (user_id, 650.00, "Food", "2026-04-18", "Grocery run"),
+    ]
+
     cursor.executemany(
         "INSERT INTO expenses (user_id, amount, category, date, description) VALUES (?, ?, ?, ?, ?)",
-        [
-            (1, 4500, "Bills", "2026-03-05", "Monthly utilities"),
-            (1, 3200, "Food", "2026-03-10", "Groceries and dining"),
-            (1, 2050, "Health", "2026-03-15", "Pharmacy and wellness"),
-            (1, 1800, "Transport", "2026-03-12", "Fuel and public transport"),
-        ]
+        sample_expenses
     )
 
     conn.commit()

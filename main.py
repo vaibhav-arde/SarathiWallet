@@ -3,11 +3,20 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
+from contextlib import asynccontextmanager
 
 import sqlite3
 import os
+from database.db import get_db, init_db, seed_db
 
-app = FastAPI(title="Sarathi Wallet")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Initialize and seed the database on startup
+    init_db()
+    seed_db()
+    yield
+
+app = FastAPI(title="Sarathi Wallet", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Session middleware for Flash messages and user state
@@ -16,19 +25,21 @@ app.add_middleware(SessionMiddleware, secret_key="your-secret-key-change-in-prod
 templates = Jinja2Templates(directory="templates")
 
 # ------------------------------------------------------------------ #
-# Database Dependencies                                              #
+# Database path from project root
 # ------------------------------------------------------------------ #
 
-DATABASE_PATH = "database/expenses.db"
+DATABASE_PATH = "SarathiWallet.db"
 
-
-def get_db():
-    """Returns a SQLite connection with row_factory and foreign keys enabled."""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    yield conn
-    conn.close()
+def get_db_dependency():
+    """Returns a SQLite connection for use in routes via Depends."""
+    # Importing here to avoid circular dependencies if any, 
+    # but since main.py already imports from database.db it's fine.
+    from database.db import get_db
+    conn = get_db()
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 # ------------------------------------------------------------------ #
@@ -58,7 +69,7 @@ async def register_page(request: Request):
 @app.post("/register", response_class=HTMLResponse)
 async def register(
     request: Request,
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db_dependency)
 ):
     """Handle user registration - coming in Step 3"""
     return templates.TemplateResponse("register.html", {
@@ -75,7 +86,7 @@ async def login_page(request: Request):
 @app.post("/login", response_class=HTMLResponse)
 async def login(
     request: Request,
-    db: sqlite3.Connection = Depends(get_db)
+    db: sqlite3.Connection = Depends(get_db_dependency)
 ):
     """Handle user login - coming in Step 3"""
     return templates.TemplateResponse("login.html", {
