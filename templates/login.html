@@ -17,6 +17,12 @@
             <div class="auth-error">{{ error }}</div>
             {% endif %}
 
+            {% if success %}
+            <div class="auth-success" style="color: var(--success-color, #28a745); background: #d4edda; padding: 10px; border-radius: 4px; margin-bottom: 20px; text-align: center; border: 1px solid #c3e6cb;">
+                {{ success }}
+            </div>
+            {% endif %}
+
             <form method="POST" action="{{ url_for('login') }}">
                 <div class="form-group">
                     <label for="email">Email address</label>

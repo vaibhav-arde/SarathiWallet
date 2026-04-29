@@ -1,13 +1,16 @@
-from fastapi import FastAPI, Request, Depends
+from fastapi import FastAPI, Request, Depends, status
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from contextlib import asynccontextmanager
+from werkzeug.security import generate_password_hash
+from pydantic import ValidationError
 
 import sqlite3
 import os
 from database.db import get_db, init_db, seed_db
+from models import UserCreate
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -71,16 +74,54 @@ async def register(
     request: Request,
     db: sqlite3.Connection = Depends(get_db_dependency)
 ):
-    """Handle user registration - coming in Step 3"""
-    return templates.TemplateResponse("register.html", {
-        "request": request,
-        "error": "Registration coming in Step 3"
-    })
+    """Handle user registration"""
+    form_data = await request.form()
+    try:
+        # Validate input using Pydantic
+        user_data = UserCreate(
+            name=form_data.get("name"),
+            email=form_data.get("email"),
+            password=form_data.get("password")
+        )
+    except ValidationError as e:
+        # Return first validation error message
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": e.errors()[0]["msg"]
+        })
+
+    cursor = db.cursor()
+    
+    # Check if email is already taken
+    cursor.execute("SELECT id FROM users WHERE email = ?", (user_data.email,))
+    if cursor.fetchone():
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": "Email address already registered"
+        })
+
+    # Hash password and insert user
+    hashed_password = generate_password_hash(user_data.password)
+    try:
+        cursor.execute(
+            "INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)",
+            (user_data.name, user_data.email, hashed_password)
+        )
+        db.commit()
+    except Exception as e:
+        return templates.TemplateResponse("register.html", {
+            "request": request,
+            "error": "An error occurred while creating your account. Please try again."
+        })
+
+    request.session["success"] = "Registration successful! Please sign in."
+    return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+    success = request.session.pop("success", None)
+    return templates.TemplateResponse("login.html", {"request": request, "success": success})
 
 
 @app.post("/login", response_class=HTMLResponse)
