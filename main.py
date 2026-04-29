@@ -4,13 +4,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse, RedirectResponse
 from starlette.middleware.sessions import SessionMiddleware
 from contextlib import asynccontextmanager
-from werkzeug.security import generate_password_hash
+from werkzeug.security import generate_password_hash, check_password_hash
 from pydantic import ValidationError
 
 import sqlite3
 import os
 from database.db import get_db, init_db, seed_db
-from models import UserCreate
+from models import UserCreate, UserLogin
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -120,6 +120,8 @@ async def register(
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
+    if request.session.get("user_id"):
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
     success = request.session.pop("success", None)
     return templates.TemplateResponse("login.html", {"request": request, "success": success})
 
@@ -129,10 +131,31 @@ async def login(
     request: Request,
     db: sqlite3.Connection = Depends(get_db_dependency)
 ):
-    """Handle user login - coming in Step 3"""
+    """Handle user login"""
+    form_data = await request.form()
+    try:
+        login_data = UserLogin(
+            email=form_data.get("email"),
+            password=form_data.get("password")
+        )
+    except ValidationError:
+        return templates.TemplateResponse("login.html", {
+            "request": request,
+            "error": "Invalid email or password"
+        })
+
+    cursor = db.cursor()
+    cursor.execute("SELECT id, name, password_hash FROM users WHERE email = ?", (login_data.email,))
+    user = cursor.fetchone()
+
+    if user and check_password_hash(user["password_hash"], login_data.password):
+        request.session["user_id"] = user["id"]
+        request.session["user_name"] = user["name"]
+        return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
+
     return templates.TemplateResponse("login.html", {
         "request": request,
-        "error": "Login coming in Step 3"
+        "error": "Invalid email or password"
     })
 
 
@@ -141,8 +164,9 @@ async def login(
 # ------------------------------------------------------------------ #
 
 @app.get("/logout")
-async def logout():
-    return {"message": "Logout — coming in Step 3"}
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/", status_code=status.HTTP_303_SEE_OTHER)
 
 
 @app.get("/profile")

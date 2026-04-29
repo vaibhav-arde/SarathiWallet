@@ -13,6 +13,11 @@ class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=100)
 
 
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+
 class User(UserBase):
     id: int
     created_at: datetime
